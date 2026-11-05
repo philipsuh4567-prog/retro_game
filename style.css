@@ -1,0 +1,120 @@
+:root {
+  --u: 1.6px;               /* CSS px per game pixel, set from JS */
+  --cyan: #3ff0ff;
+  --mag: #ff3df0;
+  --green: #39ff7a;
+  --orange: #ff8a1c;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: #020108;
+  overflow: hidden;
+  overscroll-behavior: none;
+  font-family: 'Press Start 2P', monospace;
+  color: #fff;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+body { display: flex; align-items: center; justify-content: center; }
+
+#stage {
+  position: relative;
+  width: calc(270 * var(--u));
+  height: calc(480 * var(--u));
+  background: #05020f;
+  box-shadow: 0 0 0 calc(var(--u) * 2) #231a6b, 0 0 calc(var(--u) * 18) rgba(63, 240, 255, 0.28);
+}
+
+#game {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  touch-action: none;
+}
+
+.screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--u) * 9);
+  padding: calc(var(--u) * 12);
+  text-align: center;
+  background: rgba(3, 1, 16, 0.62);
+}
+.hidden { display: none; }
+
+.title { margin: 0; font-size: calc(var(--u) * 22); line-height: 1.2; font-weight: normal; }
+.title span { display: block; }
+.t1 { color: var(--cyan); text-shadow: 0 0 calc(var(--u) * 2) var(--cyan), 0 0 calc(var(--u) * 9) var(--cyan); }
+.t2 { color: var(--mag); text-shadow: 0 0 calc(var(--u) * 2) var(--mag), 0 0 calc(var(--u) * 9) var(--mag); }
+
+.sub, .label, .hint { margin: 0; }
+.sub { font-size: calc(var(--u) * 7); color: var(--green); text-shadow: 0 0 calc(var(--u) * 4) var(--green); }
+.label { font-size: calc(var(--u) * 7); color: #cfd6ff; margin-top: calc(var(--u) * 4); }
+.hint { font-size: calc(var(--u) * 5); line-height: 1.9; color: #8d9ad0; }
+
+.cards { display: flex; gap: calc(var(--u) * 8); }
+
+.card {
+  --c: var(--cyan);
+  width: calc(var(--u) * 112);
+  padding: calc(var(--u) * 8) calc(var(--u) * 4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--u) * 6);
+  background: rgba(10, 6, 40, 0.8);
+  border: calc(var(--u) * 2) solid #2a2470;
+  color: #8d9ad0;
+  font: inherit;
+  cursor: pointer;
+}
+.card[data-power="laser"] { --c: var(--orange); }
+.card b { font-size: calc(var(--u) * 7); font-weight: normal; color: #cfd6ff; }
+.card small { font-size: calc(var(--u) * 5); line-height: 1.7; }
+.card.sel {
+  border-color: var(--c);
+  color: #fff;
+  box-shadow: 0 0 calc(var(--u) * 8) var(--c), inset 0 0 calc(var(--u) * 7) rgba(255, 255, 255, 0.1);
+}
+.card.sel b { color: var(--c); text-shadow: 0 0 calc(var(--u) * 4) var(--c); }
+
+.icon {
+  --w: 11;
+  width: calc(var(--u) * var(--w) * 3);
+  height: auto;
+  image-rendering: pixelated;
+}
+
+.btn {
+  font: inherit;
+  font-size: calc(var(--u) * 9);
+  padding: calc(var(--u) * 7) calc(var(--u) * 14);
+  background: rgba(57, 255, 122, 0.06);
+  color: var(--green);
+  border: calc(var(--u) * 2) solid var(--green);
+  box-shadow: 0 0 calc(var(--u) * 8) rgba(57, 255, 122, 0.55), inset 0 0 calc(var(--u) * 6) rgba(57, 255, 122, 0.25);
+  text-shadow: 0 0 calc(var(--u) * 4) var(--green);
+  cursor: pointer;
+}
+.btn:hover, .btn:active { background: var(--green); color: #02140a; text-shadow: none; }
+.btn.alt { color: var(--cyan); border-color: var(--cyan); background: rgba(63, 240, 255, 0.06);
+  box-shadow: 0 0 calc(var(--u) * 8) rgba(63, 240, 255, 0.5), inset 0 0 calc(var(--u) * 6) rgba(63, 240, 255, 0.2);
+  text-shadow: 0 0 calc(var(--u) * 4) var(--cyan); }
+.btn.alt:hover, .btn.alt:active { background: var(--cyan); color: #021418; text-shadow: none; }
+#startBtn { animation: pulse 1.3s steps(2, end) infinite; }
+@keyframes pulse { 50% { box-shadow: 0 0 calc(var(--u) * 14) rgba(57, 255, 122, 0.9), inset 0 0 calc(var(--u) * 8) rgba(57, 255, 122, 0.4); } }
+
+#end h2 { margin: 0; font-size: calc(var(--u) * 17); font-weight: normal; }
+#end h2.lose { color: #ff4d6a; text-shadow: 0 0 calc(var(--u) * 3) #ff4d6a, 0 0 calc(var(--u) * 10) #ff4d6a; }
+#end h2.win { color: var(--green); text-shadow: 0 0 calc(var(--u) * 3) var(--green), 0 0 calc(var(--u) * 10) var(--green); }
+#endStats { margin: 0 0 calc(var(--u) * 6); font-size: calc(var(--u) * 7); line-height: 1.9; color: #cfd6ff; }
