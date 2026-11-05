@@ -204,7 +204,7 @@
     f.fillStyle = '#ffffff';
     f.fillRect(0, 0, flash.width, flash.height);
 
-    return { c: out, flash: flash, w: base.width, h: base.height, pad: pad };
+    return { c: out, flash: flash, base: base, w: base.width, h: base.height, pad: pad };
   }
 
   const enemyRows = [null, T1, T2, T3, T4, T5];

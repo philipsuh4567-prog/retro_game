@@ -1,0 +1,13 @@
+{
+  "name": "Neon Invaders",
+  "short_name": "Neon Invaders",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#05020f",
+  "theme_color": "#05020f",
+  "icons": [
+    { "src": "apple-touch-icon.png", "sizes": "180x180", "type": "image/png", "purpose": "any" }
+  ]
+}
