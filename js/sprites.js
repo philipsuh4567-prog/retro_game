@@ -6,9 +6,16 @@
     ship:   { d: '#0b1a55', b: '#1d4fe0', B: '#3d8bff', L: '#aef5ff', K: '#5ce6ff', W: '#ffffff', O: '#ff8a1c', o: '#b94a06', Y: '#ffd34d' },
     green:  { g: '#0b4f22', G: '#25d558', H: '#a8ffc2', D: '#b8f7ff', W: '#ffffff', 1: '#ffe94d', 2: '#ff55d6' },
     purple: { g: '#2a0b5c', G: '#a24dff', H: '#e4b8ff', D: '#ffd9f7', W: '#ffffff', 1: '#45ff96', 2: '#ff55d6', e: '#0b4f22', E: '#25d558', F: '#a8ffc2' },
+    // green + purple families side by side (g/G/H green, p/P/Q purple)
+    mix:    { g: '#0b4f22', G: '#25d558', H: '#a8ffc2', p: '#2a0b5c', P: '#a24dff', Q: '#e4b8ff', D: '#b8f7ff', W: '#ffffff',
+              1: '#ffe94d', 2: '#ff55d6', e: '#0b4f22', E: '#25d558', F: '#a8ffc2' },
     shield: { c: '#1aa0ff', C: '#8ff6ff', W: '#ffffff' },
     laser:  { O: '#ff8a1c', Y: '#ffe27a', W: '#ffffff', d: '#0b1a55', B: '#3d8bff' },
+    time:   { M: '#ff3df0', C: '#ffc2f8' },
   };
+
+  // half + its mirror image (the last char of `half` is the centre column)
+  const mirror = function (half) { return half + half.slice(0, -1).split('').reverse().join(''); };
 
   // left half incl. centre column (10 wide); mirrored into a 19-wide jet
   const SHIP_HALF = [
@@ -37,9 +44,7 @@
     '.......dBO',
     '.......dOY',
   ];
-  const SHIP = SHIP_HALF.map(function (r) {
-    return r + r.slice(0, -1).split('').reverse().join('');
-  });
+  const SHIP = SHIP_HALF.map(mirror);
 
   const LIFE = [
     '....B....',
@@ -52,7 +57,8 @@
     '...dOd...',
   ];
 
-  const T1 = [
+  // ---- enemy kinds, weakest (1) to strongest (10) -------------------------
+  const K1 = [
     'ggggg',
     'gDDDDDg',
     'gDWDDDDDg',
@@ -64,7 +70,7 @@
     'ggHgg',
   ];
 
-  const T2 = [
+  const K2 = [
     'ggHHHgg',
     'gDDDDDDDg',
     'gDWDDDDDDDg',
@@ -77,7 +83,21 @@
     'g....ggg....g',
   ];
 
-  const T3 = [
+  // twin-dome green saucer with purple pods
+  const K3 = [
+    'ggggg...ggggg',
+    'gDDDg...gDDDg',
+    'gDWDg...gDDDg',
+    'ggGGGGGGGGGGGgg',
+    'gHHGGGGGGGGGHHg',
+    'gG1GGGG2GGGG1Gg',
+    'gpPGGGGGGGGGPpg',
+    '.gpPGGGGGGGPpg.',
+    '...gggGGGggg...',
+    '......ggg......',
+  ];
+
+  const K4 = [
     'g.......g',
     'gg.ggggg.gg',
     '.ggDDDDDgg.',
@@ -91,7 +111,7 @@
     '.....ggggggg.....',
   ];
 
-  const T4 = [
+  const K5 = [
     'ggggggg',
     'gDDDDDDDg',
     'gDWDDDDDDDg',
@@ -106,7 +126,21 @@
     'g.......ggg.......g',
   ];
 
-  const T5 = [
+  // wide purple fighter-saucer
+  const K6 = [
+    'ggggg',
+    'gDDDDDg',
+    'gDWDDDDDg',
+    'ggGGGGGGGgg',
+    'gHHGGGGGGGGGHHg',
+    'gHGGGGGGGGGGGGGGGGGHg',
+    'gG1GGGG2GGGGG2GGGG1Gg',
+    'gg.ggGGGGGGGGGGGgg.gg',
+    'g....ggggGGGgggg....g',
+    'g.......ggHgg.......g',
+  ];
+
+  const K7 = [
     'eeeeeee',
     'eFEEEEEFe',
     'eFWEEEEEEEe',
@@ -122,6 +156,54 @@
     'gg....ggggggggggg....gg',
     'g.......ggggggg.......g',
   ];
+
+  // ringed saucer: green dome, purple ring
+  const K8 = [
+    'ggg',
+    'gDDD',
+    'gDDDW',
+    'gDDDDD',
+    'ggGGGGG',
+    'pPPPPPPPPPPPP',
+    'pP1PPPPP2PPP2',
+    'pPPPPPPPPPPPP',
+    'ggGGGGGG',
+    'gggGGGGG',
+    '..ggHHHH',
+    '....gggg',
+  ].map(function (h) { return mirror(h); });
+
+  // triple-dome carrier
+  const K9 = [
+    'ggggg..ggg',
+    'gDDDg..gDD',
+    'gDDDg..gDW',
+    'ppPPPPPPPPPPP',
+    'pQQQPPPPPPPPPP',
+    'pP1PPPP2PPPPP1',
+    'pPPPPPPPPPPPPP',
+    '.ppPPPPPPPPPPP',
+    '..pppQQQQQQQQ',
+    '....pppppppp',
+  ].map(function (h) { return mirror(h); });
+
+  // boss saucer
+  const K10 = [
+    'eeee',
+    'eFEEE',
+    'eFEEEW',
+    'eEEEEEE',
+    'eeEEEEEE',
+    'pppppQQQQQQ',
+    'pQQQPPPPPPPPP',
+    'pQQPPPPPPPPPPPP',
+    'pP1PP2PP1PP2PP12',
+    'pPPPPPPPPPPPPPPP',
+    '.pPPPPPPPPPPPPP',
+    '..ppPPPPPPPPP',
+    '...ppQQQQQQ',
+    '......pp',
+  ].map(function (h) { return mirror(h); });
 
   const ICON_SHIELD = [
     'ccccccccccc',
@@ -149,6 +231,20 @@
     '..dBBBd..',
     '.dBBOBBd.',
     'dBBBBBBBd',
+  ];
+
+  const ICON_TIME = [
+    'MMMMMMMMM',
+    'MCCCCCCCM',
+    '.MCCCCCM.',
+    '..MCCCM..',
+    '...MCM...',
+    '....M....',
+    '...MCM...',
+    '..MCCCM..',
+    '.MCCCCCM.',
+    'MCCCCCCCM',
+    'MMMMMMMMM',
   ];
 
   function swapLights(pal) {
@@ -207,14 +303,27 @@
     return { c: out, flash: flash, base: base, w: base.width, h: base.height, pad: pad };
   }
 
-  const enemyRows = [null, T1, T2, T3, T4, T5];
+  // [rows, palette, glow colour]
+  const KINDS = [
+    null,
+    [K1, PAL.green, '#39ff7a'],
+    [K2, PAL.green, '#39ff7a'],
+    [K3, PAL.mix, '#39ff7a'],
+    [K4, PAL.purple, '#c04bff'],
+    [K5, PAL.purple, '#c04bff'],
+    [K6, PAL.purple, '#c04bff'],
+    [K7, PAL.purple, '#c04bff'],
+    [K8, PAL.mix, '#c04bff'],
+    [K9, PAL.mix, '#c04bff'],
+    [K10, PAL.mix, '#ff4de0'],
+  ];
+
   const enemy = [null];
-  for (let t = 1; t <= 5; t++) {
-    const pal = t <= 2 ? PAL.green : PAL.purple;
-    const glow = t <= 2 ? '#39ff7a' : '#c04bff';
+  for (let k = 1; k <= 10; k++) {
+    const spec = KINDS[k];
     enemy.push([
-      build(enemyRows[t], pal, glow, 4, 6),
-      build(enemyRows[t], swapLights(pal), glow, 4, 6),
+      build(spec[0], spec[1], spec[2], 4, 6),
+      build(spec[0], swapLights(spec[1]), spec[2], 4, 6),
     ]);
   }
 
@@ -225,6 +334,7 @@
     icon: {
       shield: paint(ICON_SHIELD, PAL.shield),
       laser: paint(ICON_LASER, PAL.laser),
+      time: paint(ICON_TIME, PAL.time),
     },
   };
 })();
