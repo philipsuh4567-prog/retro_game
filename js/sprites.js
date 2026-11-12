@@ -277,8 +277,7 @@
   }
 
   // glow: soft halo baked around the sprite; flash: white silhouette for hit feedback
-  function build(rows, pal, glowCol, blur, pad) {
-    const base = paint(rows, pal);
+  function decorate(base, glowCol, blur, pad) {
     const out = document.createElement('canvas');
     out.width = base.width + pad * 2;
     out.height = base.height + pad * 2;
@@ -302,6 +301,94 @@
 
     return { c: out, flash: flash, base: base, w: base.width, h: base.height, pad: pad };
   }
+
+  function build(rows, pal, glowCol, blur, pad) {
+    return decorate(paint(rows, pal), glowCol, blur, pad);
+  }
+
+  // The final boss is drawn procedurally (left half, mirrored), then bevelled and outlined.
+  function buildBoss() {
+    const BW = 128, BH = 72, M = 1;
+    const base = document.createElement('canvas');
+    base.width = BW + M * 2; base.height = BH + M * 2;
+    const g = base.getContext('2d');
+    const px = function (x, y, col) { g.fillStyle = col; g.fillRect(x + M, y + M, 1, 1); g.fillRect(BW - 1 - x + M, y + M, 1, 1); };
+    const inside = function (poly, x, y) {
+      let c = false;
+      for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        const xi = poly[i][0], yi = poly[i][1], xj = poly[j][0], yj = poly[j][1];
+        if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c;
+      }
+      return c;
+    };
+    const fill = function (poly, col) {
+      let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+      poly.forEach(function (p) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]); });
+      for (let y = Math.floor(y0); y <= Math.ceil(y1); y++) for (let x = Math.floor(x0); x <= Math.ceil(x1); x++) if (inside(poly, x + 0.5, y + 0.5)) px(x, y, col);
+    };
+    const line = function (xa, ya, xb, yb, col) {
+      const n = Math.max(Math.abs(xb - xa), Math.abs(yb - ya));
+      for (let i = 0; i <= n; i++) px(Math.round(xa + (xb - xa) * i / n), Math.round(ya + (yb - ya) * i / n), col);
+    };
+    const disc = function (cx, cy, r, col) {
+      for (let y = Math.floor(cy - r); y <= Math.ceil(cy + r); y++) for (let x = Math.floor(cx - r); x <= Math.ceil(cx + r); x++) {
+        if ((x + 0.5 - cx) * (x + 0.5 - cx) + (y + 0.5 - cy) * (y + 0.5 - cy) <= r * r) px(x, y, col);
+      }
+    };
+    const rect = function (x0, y0, x1, y1, col) { for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) px(x, y, col); };
+
+    // wings: swept leading edge on top, feathered trailing edge below
+    fill([[58,14],[46,5],[30,0],[14,1],[3,8],[0,18],[8,16],[10,26],[19,22],[21,33],[31,28],[33,40],[43,34],[46,46],[55,38],[58,36]], '#7a35e0');
+    [[14,2,8,16],[24,2,19,22],[36,4,31,28],[48,8,43,34],[56,14,55,38]].forEach(function (l) { line(l[0], l[1], l[2], l[3], '#3a1280'); });
+    line(58, 14, 46, 5, '#e4b8ff'); line(46, 5, 30, 0, '#e4b8ff'); line(30, 0, 14, 1, '#e4b8ff'); line(14, 1, 3, 8, '#e4b8ff'); line(3, 8, 0, 18, '#e4b8ff');
+    fill([[34,10],[44,8],[46,14],[36,16]], '#25d558');
+    fill([[20,8],[30,6],[31,12],[22,14]], '#25d558');
+    line(34, 10, 44, 8, '#a8ffc2'); line(20, 8, 30, 6, '#a8ffc2');
+    // wingtip guns
+    rect(2, 19, 5, 29, '#0b4f22'); rect(3, 28, 4, 33, '#25d558');
+    // body, plating and crest
+    fill([[64,3],[57,8],[52,18],[50,32],[52,46],[57,58],[61,66],[64,69]], '#4a1a9a');
+    fill([[64,6],[60,12],[58,24],[58,40],[60,54],[64,62]], '#a24dff');
+    fill([[64,0],[60,3],[57,8],[60,10],[64,7]], '#e4b8ff');
+    rect(60, 66, 63, 70, '#ffd34d');
+    // eye socket
+    disc(64, 32, 9.5, '#ffd34d'); disc(64, 32, 8.2, '#12062e');
+    // minion hatches (inside left / right)
+    rect(33, 24, 44, 25, '#ff8a1c'); rect(33, 31, 44, 32, '#ff8a1c'); rect(34, 26, 43, 30, '#07020f');
+
+    // bevel (light top edges, shaded undersides) + dark outline
+    const w = base.width, h = base.height;
+    const img = g.getImageData(0, 0, w, h), d = img.data;
+    const A = function (x, y) { return x < 0 || y < 0 || x >= w || y >= h ? 0 : d[(y * w + x) * 4 + 3]; };
+    const out = new Uint8ClampedArray(d);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      if (d[i + 3]) {
+        if (!A(x, y - 1)) { for (let k = 0; k < 3; k++) out[i + k] = d[i + k] + (255 - d[i + k]) * 0.35; }
+        else if (!A(x, y + 1)) { for (let k = 0; k < 3; k++) out[i + k] = d[i + k] * 0.7; }
+      } else if (A(x - 1, y) || A(x + 1, y) || A(x, y - 1) || A(x, y + 1)) {
+        out[i] = 18; out[i + 1] = 6; out[i + 2] = 46; out[i + 3] = 255;
+      }
+    }
+    g.putImageData(new ImageData(out, w, h), 0, 0);
+    return decorate(base, '#c04bff', 6, 8);
+  }
+
+  // Gaster-blaster style skull cannon (left half incl. centre, mirrored)
+  const BLASTER = [
+    '..sswww',
+    '.swwwww',
+    'swwwwww',
+    'swkkwww',
+    'swkkwww',
+    'swwwwww',
+    '.swwmmm',
+    '..swmmm',
+    '...smmm',
+    '....smm',
+    '.....sm',
+  ].map(mirror);
+  PAL.blaster = { w: '#e8ecff', s: '#8a94d0', k: '#12062e', m: '#ff3df0' };
 
   // [rows, palette, glow colour]
   const KINDS = [
@@ -331,6 +418,8 @@
     ship: build(SHIP, PAL.ship, '#3a9bff', 4, 6),
     life: build(LIFE, PAL.ship, null, 0, 1),
     enemy: enemy,
+    boss: buildBoss(),
+    blaster: build(BLASTER, PAL.blaster, '#ff3df0', 4, 6),
     icon: {
       shield: paint(ICON_SHIELD, PAL.shield),
       laser: paint(ICON_LASER, PAL.laser),
