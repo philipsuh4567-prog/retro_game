@@ -374,21 +374,68 @@
     return decorate(base, '#c04bff', 6, 8);
   }
 
-  // Gaster-blaster style skull cannon (left half incl. centre, mirrored)
-  const BLASTER = [
-    '..sswww',
-    '.swwwww',
-    'swwwwww',
-    'swkkwww',
-    'swkkwww',
-    'swwwwww',
-    '.swwmmm',
-    '..swmmm',
-    '...smmm',
-    '....smm',
-    '.....sm',
-  ].map(mirror);
-  PAL.blaster = { w: '#e8ecff', s: '#8a94d0', k: '#12062e', m: '#ff3df0' };
+  // Gaster-blaster style skull cannon, drawn procedurally (left half mirrored), muzzle pointing down
+  function buildBlaster() {
+    const BW = 30, BH = 34, M = 1;
+    const base = document.createElement('canvas');
+    base.width = BW + M * 2; base.height = BH + M * 2;
+    const g = base.getContext('2d');
+    const px = function (x, y, col) { g.fillStyle = col; g.fillRect(x + M, y + M, 1, 1); g.fillRect(BW - 1 - x + M, y + M, 1, 1); };
+    const inside = function (poly, x, y) {
+      let c = false;
+      for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        const xi = poly[i][0], yi = poly[i][1], xj = poly[j][0], yj = poly[j][1];
+        if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c;
+      }
+      return c;
+    };
+    const fill = function (poly, col) {
+      let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+      poly.forEach(function (q) { x0 = Math.min(x0, q[0]); x1 = Math.max(x1, q[0]); y0 = Math.min(y0, q[1]); y1 = Math.max(y1, q[1]); });
+      for (let y = Math.floor(y0); y <= Math.ceil(y1); y++) for (let x = Math.floor(x0); x <= Math.ceil(x1); x++) if (inside(poly, x + 0.5, y + 0.5)) px(x, y, col);
+    };
+    const disc = function (cx, cy, r, col) {
+      for (let y = Math.floor(cy - r); y <= Math.ceil(cy + r); y++) for (let x = Math.floor(cx - r); x <= Math.ceil(cx + r); x++) {
+        if ((x + 0.5 - cx) * (x + 0.5 - cx) + (y + 0.5 - cy) * (y + 0.5 - cy) <= r * r) px(x, y, col);
+      }
+    };
+    const rect = function (x0, y0, x1, y1, col) { for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) px(x, y, col); };
+
+    const BONE = '#eef0ff', SHADE = '#a9b2e6', DARK = '#12062e';
+    fill([[9, 7], [3, 0], [1, 8], [6, 14]], SHADE);              // horns
+    fill([[10, 5], [4, 1], [3, 7], [8, 11]], BONE);
+    disc(15, 11, 10.5, BONE);                                    // cranium
+    fill([[5, 15], [15, 14], [15, 25], [8, 25]], BONE);          // cheek / upper jaw
+    fill([[6, 22], [15, 22], [15, 26], [8, 26]], SHADE);
+    disc(10, 11, 3.6, DARK);                                     // eye sockets
+    disc(10, 11, 2.2, '#ff3df0'); px(10, 10, '#ffe2fb');
+    rect(13, 17, 14, 20, DARK);                                  // nose holes
+    fill([[8, 26], [15, 26], [15, 33], [11, 32]], DARK);         // mouth cavity
+    fill([[8, 26], [10, 26], [9, 30]], BONE);                    // fangs
+    fill([[12, 26], [14, 26], [13, 31]], BONE);
+    rect(5, 14, 5, 18, SHADE);
+
+    const w = base.width, h = base.height;
+    const img = g.getImageData(0, 0, w, h), d = img.data;
+    const A = function (x, y) { return x < 0 || y < 0 || x >= w || y >= h ? 0 : d[(y * w + x) * 4 + 3]; };
+    const out = new Uint8ClampedArray(d);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      if (!d[i + 3] && (A(x - 1, y) || A(x + 1, y) || A(x, y - 1) || A(x, y + 1))) { out[i] = 18; out[i + 1] = 6; out[i + 2] = 46; out[i + 3] = 255; }
+    }
+    g.putImageData(new ImageData(out, w, h), 0, 0);
+    return decorate(base, '#ff3df0', 5, 8);
+  }
+
+  // whole-number upscale (keeps pixels crisp)
+  function scaleUp(src, k) {
+    const c = document.createElement('canvas');
+    c.width = src.width * k; c.height = src.height * k;
+    const g = c.getContext('2d');
+    g.imageSmoothingEnabled = false;
+    g.drawImage(src, 0, 0, c.width, c.height);
+    return c;
+  }
 
   // [rows, palette, glow colour]
   const KINDS = [
@@ -415,11 +462,11 @@
   }
 
   window.Sprites = {
-    ship: build(SHIP, PAL.ship, '#3a9bff', 4, 6),
+    ship: decorate(scaleUp(paint(SHIP, PAL.ship), 2), '#3a9bff', 5, 8),
     life: build(LIFE, PAL.ship, null, 0, 1),
     enemy: enemy,
     boss: buildBoss(),
-    blaster: build(BLASTER, PAL.blaster, '#ff3df0', 4, 6),
+    blaster: buildBlaster(),
     icon: {
       shield: paint(ICON_SHIELD, PAL.shield),
       laser: paint(ICON_LASER, PAL.laser),

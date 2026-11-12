@@ -13,13 +13,13 @@
     lives: 3,
     waves: 15,
     ship: {
-      margin: 12,
+      margin: 20,
       maxSpeed: 340,        // px/s cap
       smooth: 17,           // higher = lighter/snappier follow
       dragGain: 1.2,        // ship travels a bit further than the finger
       moveThreshold: 10,    // px/s: ship counts as "moving" (and fires) above this
       fireInterval: 0.11, bulletSpeed: 440,
-      hitW: 9, hitH: 12,
+      hitW: 11, hitH: 15,
       respawnDelay: 1.2, invuln: 2.4, keySpeed: 250,
     },
     hold: { time: 0.5, still: 0.06, moveDist: 7 },     // short, forgiving hold-to-activate
@@ -31,8 +31,8 @@
     },
     boss: { hp: 900, baseY: 98, score: 25000 },
     charge: { base: 3, perKind: 0.8 },
-    shield: { duration: 7, radius: 18 },
-    laser: { duration: 4, dps: 22, width: 30 },
+    shield: { duration: 7, radius: 32 },
+    laser: { duration: 4, dps: 22, width: 38 },
     time: { duration: 3, scale: 0.3 },     // shortest power-up; enemies + their bullets run at 30% speed
     enemy: {
       count: [10, 1.55],     // enemies per wave = round(a + b * wave)
@@ -76,6 +76,7 @@
     time: { color: '#ff3df0' },
   };
 
+  const SHIP_H = S.ship.h / 2;   // half the ship's height: nose/tail offset
   const rand = function (a, b) { return a + Math.random() * (b - a); };
   const clamp = function (v, a, b) { return v < a ? a : v > b ? b : v; };
   const lerp = function (a, b, t) { return a + (b - a) * t; };
@@ -106,7 +107,7 @@
   try { const sv = localStorage.getItem('neon.power'); if (sv === 'shield' || sv === 'laser' || sv === 'time') P.type = sv; } catch (_) {}
 
   function zone() {
-    const bottom = H - 22 - SAFE.bottom;
+    const bottom = H - 38 - SAFE.bottom;
     const top = Math.max(Math.round(H * 0.5), Math.round(H - SAFE.bottom - clamp(H * 0.4, 190, 260)));
     return { top: top, bottom: bottom };
   }
@@ -545,7 +546,7 @@
 
     ship.fireCd = Math.max(0, ship.fireCd - dt);
     if (ship.moving && !laserOn() && ship.fireCd <= 0) {
-      pbul.push({ x: ship.x - 4, y: ship.y - 8 }, { x: ship.x + 4, y: ship.y - 8 });
+      pbul.push({ x: ship.x - 8, y: ship.y - SHIP_H * 0.6 }, { x: ship.x + 8, y: ship.y - SHIP_H * 0.6 });
       sfx('shoot');
       ship.fireCd = sc.fireInterval;
     }
@@ -710,7 +711,7 @@
     const offs = [0, -72, 72, -144, 144];
     for (let i = 0; i < n; i++) {
       blasters.push({ x: clamp(ship.x + offs[i], 22, W - 22), w: 24, y0: boss.y + boss.h / 2 - 8,
-                      t: 0, warn: 1.1, fire: 0.8, fade: 0.25, state: 'warn' });
+                      t: 0, inT: 0.6, warn: 1.0, fire: 0.8, out: 0.7, side: Math.random() < 0.5 ? -1 : 1, state: 'in' });
     }
   }
 
@@ -838,10 +839,11 @@
       const bl = blasters[i];
       const was = bl.state;
       bl.t += edt;
-      bl.state = bl.t < bl.warn ? 'warn' : bl.t < bl.warn + bl.fire ? 'fire' : 'fade';
+      const t1 = bl.inT, t2 = t1 + bl.warn, t3 = t2 + bl.fire;
+      bl.state = bl.t < t1 ? 'in' : bl.t < t2 ? 'warn' : bl.t < t3 ? 'fire' : 'out';
       if (was === 'warn' && bl.state === 'fire') sfx('blasterFire');
     }
-    blasters = blasters.filter(function (bl) { return bl.t < bl.warn + bl.fire + bl.fade; });
+    blasters = blasters.filter(function (bl) { return bl.t < bl.inT + bl.warn + bl.fire + bl.out; });
   }
 
   function collisions(dt) {
@@ -1086,20 +1088,20 @@
   }
 
   function drawLaser() {
-    const x = Math.round(ship.x), y0 = Math.round(ship.y - 12), w = CFG.laser.width;
+    const x = Math.round(ship.x), y0 = Math.round(ship.y - SHIP_H), w = CFG.laser.width, k = w / 30;
     const fl = ((G.t * 30) | 0) % 2;
     ctx.globalCompositeOperation = 'lighter';
     ctx.fillStyle = 'rgba(255,70,40,0.20)'; ctx.fillRect(x - w / 2 - 5, 0, w + 10, y0);
     ctx.fillStyle = 'rgba(255,138,28,0.55)'; ctx.fillRect(x - w / 2, 0, w, y0);
     ctx.globalCompositeOperation = 'source-over';
-    ctx.fillStyle = '#ff9a2e'; ctx.fillRect(x - 11 - fl, 0, 22 + fl * 2, y0);
-    ctx.fillStyle = '#ffe27a'; ctx.fillRect(x - 7, 0, 14, y0);
-    ctx.fillStyle = '#ffffff'; ctx.fillRect(x - 2, 0, 4, y0);
+    ctx.fillStyle = '#ff9a2e'; ctx.fillRect(Math.round(x - 11 * k) - fl, 0, Math.round(22 * k) + fl * 2, y0);
+    ctx.fillStyle = '#ffe27a'; ctx.fillRect(Math.round(x - 7 * k), 0, Math.round(14 * k), y0);
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(x - 3, 0, 6, y0);
     ctx.fillStyle = 'rgba(255,255,255,0.55)';
     const off = (G.t * 260) % 14;
-    for (let y = y0 - off; y > 0; y -= 14) ctx.fillRect(x - 9, Math.round(y), 18, 2);
-    ctx.fillStyle = '#ffffff'; ctx.fillRect(x - 9, y0 - 2, 18, 3);
-    ctx.fillStyle = '#ffe27a'; ctx.fillRect(x - 5, y0 - 5, 10, 3);
+    for (let y = y0 - off; y > 0; y -= 14) ctx.fillRect(Math.round(x - 9 * k), Math.round(y), Math.round(18 * k), 2);
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(Math.round(x - 9 * k), y0 - 2, Math.round(18 * k), 3);
+    ctx.fillStyle = '#ffe27a'; ctx.fillRect(Math.round(x - 5 * k), y0 - 5, Math.round(10 * k), 3);
   }
 
   function drawBoss() {
@@ -1127,8 +1129,10 @@
   }
 
   function drawBlasters() {
+    const sk = S.blaster.c;
     for (let i = 0; i < blasters.length; i++) {
       const bl = blasters[i], x = Math.round(bl.x), y0 = Math.round(bl.y0), half = bl.w / 2, len = H - y0;
+      const tF = bl.inT + bl.warn, tO = tF + bl.fire;
       if (bl.state === 'warn') {
         const on = ((bl.t * 12) | 0) % 2;
         ctx.globalAlpha = on ? 0.32 : 0.12;
@@ -1138,8 +1142,8 @@
         ctx.fillRect(x - half, y0, 1, len); ctx.fillRect(x + half - 1, y0, 1, len);
         ctx.fillRect(x - half, H - 2, bl.w, 1);
         ctx.globalAlpha = 1;
-      } else {
-        const k = bl.state === 'fire' ? 1 : Math.max(0, 1 - (bl.t - bl.warn - bl.fire) / bl.fade);
+      } else if (bl.state === 'fire' || (bl.state === 'out' && bl.t - tO < 0.25)) {
+        const k = bl.state === 'fire' ? 1 : Math.max(0, 1 - (bl.t - tO) / 0.25);
         const fl = ((G.t * 30) | 0) % 2;
         ctx.globalAlpha = k;
         ctx.globalCompositeOperation = 'lighter';
@@ -1150,13 +1154,40 @@
         ctx.fillStyle = '#ffffff'; ctx.fillRect(x - 3, y0, 6, len);
         ctx.globalAlpha = 1;
       }
-      const sk = S.blaster.c;
-      ctx.drawImage(sk, Math.round(bl.x - sk.width), Math.round(y0 - 6 - sk.height), sk.width * 2, sk.height * 2);
-      if (bl.state !== 'warn' || bl.t > bl.warn - 0.3) {
-        ctx.fillStyle = '#ffffff'; ctx.globalAlpha = 0.85;
-        ctx.fillRect(x - 4, y0 - 4, 9, 4);
-        ctx.globalAlpha = 1;
+
+      // skull: spirals in, settles and charges, recoils while firing, spirals away
+      const R0 = 140, spin = TAU * 0.8;
+      let sx = bl.x, sy = y0 - 14, rot = 0, alpha = 1;
+      if (bl.state === 'in') {
+        const u = clamp(bl.t / bl.inT, 0, 1), e = 1 - (1 - u) * (1 - u);
+        const ang = -Math.PI / 2 + bl.side * (1 - e) * spin, R = R0 * (1 - e);
+        sx += Math.cos(ang) * R; sy += Math.sin(ang) * R;
+        rot = bl.side * (1 - e) * spin; alpha = Math.min(1, u * 4);
+      } else if (bl.state === 'out') {
+        const u = clamp((bl.t - tO) / bl.out, 0, 1), e = u * u;
+        const ang = -Math.PI / 2 + bl.side * e * spin, R = R0 * e;
+        sx += Math.cos(ang) * R; sy += Math.sin(ang) * R;
+        rot = -bl.side * e * spin; alpha = 1 - e * e;
+      } else if (bl.state === 'fire') {
+        sx += rand(-1, 1); sy += rand(-1.5, 0.5);
+      } else if (bl.t > tF - 0.35) {
+        sx += ((G.t * 45) | 0) % 2 ? 0.8 : -0.8;
       }
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.translate(Math.round(sx), Math.round(sy));
+      ctx.rotate(rot);
+      ctx.drawImage(sk, -Math.round(sk.width / 2), -Math.round(sk.height / 2));
+      if (bl.state === 'warn' || bl.state === 'fire') {
+        const c = bl.state === 'fire' ? 1 : clamp((bl.t - bl.inT) / bl.warn, 0, 1);
+        ctx.globalAlpha = alpha * (0.25 + 0.75 * c);
+        ctx.fillStyle = bl.state === 'fire' ? '#ffffff' : '#ff3df0';
+        ctx.fillRect(-3, 7, 7, 7);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(-1, 9, 3, 4);
+      }
+      ctx.restore();
+      ctx.globalAlpha = 1;
     }
   }
 
@@ -1171,13 +1202,14 @@
       drawImg(aura(col), x, y);
       ctx.globalAlpha = 1;
     }
-    const fl = 3 + (ship.moving ? 3 : 0) + ((Math.random() * 3) | 0);
-    const fx = Math.round(x), fy = Math.round(y) + 12;
+    const fl = 6 + (ship.moving ? 6 : 0) + ((Math.random() * 4) | 0);
+    const fx = Math.round(x), fy = Math.round(y) + SHIP_H;
     ctx.globalCompositeOperation = 'lighter';
-    ctx.fillStyle = 'rgba(255,120,20,0.3)'; ctx.fillRect(fx - 3, fy, 7, fl + 3);
+    ctx.fillStyle = 'rgba(255,120,20,0.3)'; ctx.fillRect(fx - 6, fy, 13, fl + 5);
     ctx.globalCompositeOperation = 'source-over';
-    ctx.fillStyle = '#ff7a12'; ctx.fillRect(fx - 1, fy, 3, fl);
-    ctx.fillStyle = '#fff2a8'; ctx.fillRect(fx, fy, 1, Math.max(1, fl - 2));
+    ctx.fillStyle = '#ff7a12'; ctx.fillRect(fx - 3, fy, 7, fl);
+    ctx.fillStyle = '#ffd34d'; ctx.fillRect(fx - 2, fy, 5, Math.max(2, fl - 3));
+    ctx.fillStyle = '#fff2a8'; ctx.fillRect(fx - 1, fy, 3, Math.max(2, fl - 6));
     drawImg(spr.c, x, y);
     if (P.state === 'ready') {
       ctx.globalCompositeOperation = 'lighter';
@@ -1199,15 +1231,15 @@
       }
     }
     if (timeOn()) {
-      const r = 14 + ((G.t * 30) % 12);
+      const r = 26 + ((G.t * 30) % 14);
       ctx.globalAlpha = 0.5;
       pixelRing(x, y, r, '#ff9af5', 0, TAU, 3);
       ctx.globalAlpha = 1;
     }
     if (P.hold > 0) {
-      pixelRing(x, y, 22, 'rgba(255,255,255,0.22)', 0, TAU, 0);
-      pixelRing(x, y, 22, '#ffffff', -Math.PI / 2, -Math.PI / 2 + TAU * Math.min(1, P.hold / CFG.hold.time), 0);
-      pixelRing(x, y, 23, col, -Math.PI / 2, -Math.PI / 2 + TAU * Math.min(1, P.hold / CFG.hold.time), 0);
+      pixelRing(x, y, 34, 'rgba(255,255,255,0.22)', 0, TAU, 0);
+      pixelRing(x, y, 34, '#ffffff', -Math.PI / 2, -Math.PI / 2 + TAU * Math.min(1, P.hold / CFG.hold.time), 0);
+      pixelRing(x, y, 35, col, -Math.PI / 2, -Math.PI / 2 + TAU * Math.min(1, P.hold / CFG.hold.time), 0);
     }
   }
 
