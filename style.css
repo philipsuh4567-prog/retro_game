@@ -123,3 +123,14 @@ body { position: fixed; inset: 0; display: flex; align-items: center; justify-co
 #end h2.lose { color: #ff4d6a; text-shadow: 0 0 calc(var(--u) * 3) #ff4d6a, 0 0 calc(var(--u) * 10) #ff4d6a; }
 #end h2.win { color: var(--green); text-shadow: 0 0 calc(var(--u) * 3) var(--green), 0 0 calc(var(--u) * 10) var(--green); }
 #endStats { margin: 0 0 calc(var(--u) * 6); font-size: calc(var(--u) * 7); line-height: 1.9; color: #cfd6ff; }
+
+.mini {
+  font: inherit;
+  font-size: calc(var(--u) * 5);
+  padding: calc(var(--u) * 4) calc(var(--u) * 8);
+  background: transparent;
+  color: #8d9ad0;
+  border: calc(var(--u) * 1.5) solid #2a2470;
+  cursor: pointer;
+}
+.mini:hover, .mini:active { color: #fff; border-color: var(--cyan); }

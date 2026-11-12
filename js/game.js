@@ -79,6 +79,7 @@
   const rand = function (a, b) { return a + Math.random() * (b - a); };
   const clamp = function (v, a, b) { return v < a ? a : v > b ? b : v; };
   const lerp = function (a, b, t) { return a + (b - a) * t; };
+  const sfx = function (n) { if (window.SFX) window.SFX.play(n); };
 
   /* ------------------------------------------------------------------ canvas */
   const canvas = document.getElementById('game');
@@ -375,6 +376,7 @@
   function startGame() {
     const q = new URLSearchParams(location.search);
     const w0 = parseInt(q.get('wave'), 10);
+    sfx('start');
     G.mode = 'play'; G.t = 0; G.ts = 1; G.etime = 0;
     G.score = 0; G.lives = CFG.lives; G.shake = 0; G.flash = 0; G.respawnT = 0; G.endT = 0;
     enemies = []; pbul = []; ebul = []; parts = []; rings = []; boss = null; blasters = [];
@@ -389,6 +391,7 @@
   function startWave(n) {
     G.wave = n; G.ws = 'enter'; G.wt = 0; G.formT = 0; G.fightT = 0; G.fireT = 1.2; G.diveT = 0.3; boss = null; blasters = [];
     G.banner = { text: 'WAVE ' + n, color: '#3ff0ff', t: 0, dur: 1.9 };
+    sfx('wave');
     const E = CFG.enemy;
     const count = Math.round(E.count[0] + E.count[1] * n);
     const slots = GEN[WAVE_FORM[n - 1]](count, formationBox());
@@ -416,6 +419,7 @@
 
   function endGame(win) {
     G.mode = win ? 'win' : 'over';
+    sfx(win ? 'victory' : 'gameover');
     ui.endTitle.textContent = win ? 'VICTORY' : 'GAME OVER';
     ui.endTitle.className = win ? 'win' : 'lose';
     ui.endStats.innerHTML = (win ? 'BOSS DEFEATED<br>ALL WAVES CLEARED' : G.wave > CFG.waves ? 'FELL TO THE BOSS' : 'REACHED WAVE ' + G.wave + ' / ' + CFG.waves) +
@@ -437,11 +441,12 @@
   function addCharge(n) {
     if (P.state !== 'charge') return;
     P.charge = Math.min(100, P.charge + n);
-    if (P.charge >= 100) { P.state = 'ready'; P.hold = 0; }
+    if (P.charge >= 100) { P.state = 'ready'; P.hold = 0; sfx('ready'); }
   }
 
   function activatePower() {
     P.state = 'active'; P.dur = CFG[P.type].duration; P.time = P.dur; P.hold = 0;
+    sfx('power_' + P.type);
     G.flash = 0.45; G.shake = P.type === 'time' ? 0 : 4;
     ring(ship.x, ship.y, POWER[P.type].color, 240, 110);
     burst(ship.x, ship.y, POWER[P.type].color, 18, 120);
@@ -456,6 +461,7 @@
   /* ---------------------------------------------------------------- combat */
   function killEnemy(e) {
     e.dead = true;
+    sfx('boom');
     const spec = KIND[e.kind];
     G.score += spec.score;
     addCharge(CFG.charge.base + CFG.charge.perKind * e.kind);
@@ -469,11 +475,13 @@
   function hitEnemy(e, dmg) {
     e.hp -= dmg;
     e.flash = 0.07;
+    sfx('hit');
     if (e.hp <= 0 && !e.dead) killEnemy(e);
   }
 
   function killShip() {
     ship.alive = false;
+    sfx('death');
     G.lives--;
     G.shake = 7;
     inp.keys = Object.create(null);
@@ -487,6 +495,7 @@
   }
 
   function enemyShoot(e) {
+    sfx('eshoot');
     const spec = KIND[e.kind];
     const sp = (CFG.fire.speedBase + CFG.fire.speedPerWave * G.wave) * spec.speed;
     const aim = ship.alive ? Math.atan2(ship.x - e.x, ship.y - e.y) : 0;
@@ -537,6 +546,7 @@
     ship.fireCd = Math.max(0, ship.fireCd - dt);
     if (ship.moving && !laserOn() && ship.fireCd <= 0) {
       pbul.push({ x: ship.x - 4, y: ship.y - 8 }, { x: ship.x + 4, y: ship.y - 8 });
+      sfx('shoot');
       ship.fireCd = sc.fireInterval;
     }
   }
@@ -557,12 +567,14 @@
   }
 
   function aimedShot(e) {
+    sfx('eshoot');
     const sp = (CFG.fire.speedBase + CFG.fire.speedPerWave * G.wave) * 1.1;
     const a = ship.alive ? Math.atan2(ship.x - e.x, ship.y - e.y) : 0;
     ebul.push({ x: e.x, y: e.y + e.h / 2, vx: Math.sin(a) * sp, vy: Math.cos(a) * sp, col: KIND[e.kind].col });
   }
 
   function startDive(e) {
+    sfx('dive');
     e.state = 'loop'; e.dt = 0; e.side = Math.random() < 0.5 ? -1 : 1;
     e.p0x = e.x; e.p0y = e.y;
     e.diveTarget = ship.x + rand(-28, 28);
@@ -665,6 +677,7 @@
     G.wave = CFG.waves + 1; G.ws = 'boss'; G.wt = 0; G.fireT = 2;
     enemies = []; ebul = []; blasters = [];
     G.banner = { text: 'WARNING', color: '#ff4455', t: 0, dur: 2.6, flicker: true };
+    sfx('warning');
     boss = { x: W / 2, y: -spr.h, w: spr.w, h: spr.h, hp: CFG.boss.hp, maxHp: CFG.boss.hp, state: 'enter', t: 0,
              flash: 0, phase: 1, hatch: 0, dyingT: 0, boomT: 0, queue: [],
              tm: { ring: 2.5, fan: 4, blaster: 7, spiral: 3, minion: 3.5 }, sp: { left: 0, tick: 0, a: 0, arms: 1 } };
@@ -674,16 +687,18 @@
     const b = boss;
     if (!b || b.state !== 'fight') return;
     b.hp -= d; b.flash = 0.05;
+    sfx('hit');
     addCharge(d * 0.12);
     G.score += Math.round(d * 10);
     if (b.hp <= 0) {
-      b.hp = 0; b.state = 'dying'; b.dyingT = 0; b.boomT = 0; b.queue = [];
+      b.hp = 0; sfx('bossdeath'); b.state = 'dying'; b.dyingT = 0; b.boomT = 0; b.queue = [];
       ebul = []; blasters = []; G.banner = null; G.shake = 6;
       enemies.forEach(function (e) { killEnemy(e); });
     }
   }
 
   function bossRing(b, n, sp, off) {
+    sfx('ring');
     for (let i = 0; i < n; i++) {
       const a = off + i * TAU / n;
       ebul.push({ x: b.x, y: b.y + 2, vx: Math.sin(a) * sp, vy: Math.cos(a) * sp, col: 'm', orb: true });
@@ -691,6 +706,7 @@
   }
 
   function spawnBlasters(n) {
+    sfx('blasterWarn');
     const offs = [0, -72, 72, -144, 144];
     for (let i = 0; i < n; i++) {
       blasters.push({ x: clamp(ship.x + offs[i], 22, W - 22), w: 24, y0: boss.y + boss.h / 2 - 8,
@@ -701,6 +717,7 @@
   function spawnMinions(b) {
     const offs = [-65, -39, -13, 13, 39, 65];
     b.hatch = 0.9;
+    sfx('spawn');
     offs.forEach(function (off, i) {
       const kind = i % 3 === 2 ? 2 : 1, spr = S.enemy[kind][0], side = off < 0 ? -1 : 1;
       enemies.push({
@@ -740,7 +757,7 @@
     if (ph !== b.phase) {
       b.phase = ph;
       G.banner = { text: ph === 2 ? 'PHASE 2' : 'FINAL PHASE', color: '#ff4455', t: 0, dur: 1.8, flicker: true };
-      G.shake = 6;
+      G.shake = 6; sfx('phase');
       ring(b.x, b.y, '#ff4455', 220, 130);
       ebul.forEach(function (x) { burst(x.x, x.y, '#ffffff', 2, 40); });
       ebul = [];
@@ -786,7 +803,7 @@
     if (b.state === 'enter') {
       const p = clamp(b.t / 3.2, 0, 1);
       b.y = lerp(-b.h, CFG.boss.baseY, 1 - Math.pow(1 - p, 3));
-      if (p >= 1) { b.state = 'fight'; b.t = 0; G.banner = { text: 'FINAL BOSS', color: '#ff3df0', t: 0, dur: 2 }; }
+      if (p >= 1) { b.state = 'fight'; b.t = 0; G.banner = { text: 'FINAL BOSS', color: '#ff3df0', t: 0, dur: 2 }; sfx('boss'); }
     } else if (b.state === 'fight') {
       b.x = W / 2 + Math.sin(b.t * 0.45) * (W / 2 - b.w / 2 - 8) * 0.8;
       b.y = CFG.boss.baseY + Math.sin(b.t * 0.9) * 5;
@@ -819,8 +836,10 @@
     }
     for (let i = 0; i < blasters.length; i++) {
       const bl = blasters[i];
+      const was = bl.state;
       bl.t += edt;
       bl.state = bl.t < bl.warn ? 'warn' : bl.t < bl.warn + bl.fire ? 'fire' : 'fade';
+      if (was === 'warn' && bl.state === 'fire') sfx('blasterFire');
     }
     blasters = blasters.filter(function (bl) { return bl.t < bl.warn + bl.fire + bl.fade; });
   }
@@ -894,6 +913,7 @@
         if (shieldOn()) {
           if (Math.hypot(b.x - ship.x, b.y - ship.y) < CFG.shield.radius) {
             b.dead = true;
+            sfx('shield');
             burst(b.x, b.y, '#8ff6ff', 5, 70);
           }
         } else if (ship.inv <= 0 && Math.abs(b.x - ship.x) < sc.hitW / 2 + 1.5 && Math.abs(b.y - ship.y) < sc.hitH / 2 + 4) {
@@ -924,6 +944,7 @@
       ebul.forEach(function (b) { burst(b.x, b.y, '#ffffff', 2, 40); });
       ebul = [];
       G.banner = { text: 'WAVE CLEAR', color: '#39ff7a', t: 0, dur: 1.8 };
+      sfx('clear');
     } else if (G.ws === 'clear') {
       G.wt += dt;
       if (G.wt >= 1.9) {
@@ -940,7 +961,7 @@
       G.holding = false;
       if (G.respawnT > 0) {
         G.respawnT -= dt;
-        if (G.respawnT <= 0) { resetShip(); ship.inv = CFG.ship.invuln; inp.lastMove = G.t; }
+        if (G.respawnT <= 0) { resetShip(); ship.inv = CFG.ship.invuln; inp.lastMove = G.t; sfx('respawn'); }
       }
       if (G.endT > 0) { G.endT -= dt; if (G.endT <= 0) endGame(false); }
     }
@@ -1341,16 +1362,21 @@
   }
 
   document.querySelectorAll('.card').forEach(function (c) {
-    c.addEventListener('click', function () { selectPower(c.dataset.power); });
+    c.addEventListener('click', function () { sfx('click'); selectPower(c.dataset.power); });
   });
   document.getElementById('startBtn').addEventListener('click', startGame);
   document.getElementById('retryBtn').addEventListener('click', startGame);
   document.getElementById('lobbyBtn').addEventListener('click', function () {
+    sfx('click');
     G.mode = 'lobby';
     ui.end.classList.add('hidden');
     ui.lobby.classList.remove('hidden');
   });
 
+  document.querySelectorAll('.sndBtn').forEach(function (b) {
+    b.addEventListener('click', function () { window.SFX.setMuted(!window.SFX.isMuted()); sfx('click'); });
+  });
+  window.SFX.setMuted(window.SFX.isMuted());
   drawIcons();
   selectPower(P.type);
 
