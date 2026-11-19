@@ -307,8 +307,10 @@
   }
 
   // The final boss is drawn procedurally (left half, mirrored), then bevelled and outlined.
+  // K scales the whole design; the pixel size stays the same as every other sprite.
+  const BOSS_K = 1.7;
   function buildBoss() {
-    const BW = 128, BH = 72, M = 1;
+    const K = BOSS_K, BW = Math.round(128 * K), BH = Math.round(72 * K), M = 1;
     const base = document.createElement('canvas');
     base.width = BW + M * 2; base.height = BH + M * 2;
     const g = base.getContext('2d');
@@ -321,21 +323,27 @@
       }
       return c;
     };
-    const fill = function (poly, col) {
+    const fill = function (poly0, col) {
+      const poly = poly0.map(function (q) { return [q[0] * K, q[1] * K]; });
       let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
-      poly.forEach(function (p) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]); });
+      poly.forEach(function (q) { x0 = Math.min(x0, q[0]); x1 = Math.max(x1, q[0]); y0 = Math.min(y0, q[1]); y1 = Math.max(y1, q[1]); });
       for (let y = Math.floor(y0); y <= Math.ceil(y1); y++) for (let x = Math.floor(x0); x <= Math.ceil(x1); x++) if (inside(poly, x + 0.5, y + 0.5)) px(x, y, col);
     };
     const line = function (xa, ya, xb, yb, col) {
+      xa *= K; ya *= K; xb *= K; yb *= K;
       const n = Math.max(Math.abs(xb - xa), Math.abs(yb - ya));
       for (let i = 0; i <= n; i++) px(Math.round(xa + (xb - xa) * i / n), Math.round(ya + (yb - ya) * i / n), col);
     };
     const disc = function (cx, cy, r, col) {
+      cx *= K; cy *= K; r *= K;
       for (let y = Math.floor(cy - r); y <= Math.ceil(cy + r); y++) for (let x = Math.floor(cx - r); x <= Math.ceil(cx + r); x++) {
         if ((x + 0.5 - cx) * (x + 0.5 - cx) + (y + 0.5 - cy) * (y + 0.5 - cy) <= r * r) px(x, y, col);
       }
     };
-    const rect = function (x0, y0, x1, y1, col) { for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) px(x, y, col); };
+    const rect = function (x0, y0, x1, y1, col) {
+      const ya = Math.round(y0 * K), yb = Math.round((y1 + 1) * K) - 1, xa = Math.round(x0 * K), xb = Math.round((x1 + 1) * K) - 1;
+      for (let y = ya; y <= yb; y++) for (let x = xa; x <= xb; x++) px(x, y, col);
+    };
 
     // wings: swept leading edge on top, feathered trailing edge below
     fill([[58,14],[46,5],[30,0],[14,1],[3,8],[0,18],[8,16],[10,26],[19,22],[21,33],[31,28],[33,40],[43,34],[46,46],[55,38],[58,36]], '#7a35e0');
@@ -344,12 +352,15 @@
     fill([[34,10],[44,8],[46,14],[36,16]], '#25d558');
     fill([[20,8],[30,6],[31,12],[22,14]], '#25d558');
     line(34, 10, 44, 8, '#a8ffc2'); line(20, 8, 30, 6, '#a8ffc2');
+    // extra feather ribs for finer detail at this size
+    [[19,4,14,19],[30,3,25,25],[41,6,36,31],[52,10,48,36]].forEach(function (l) { line(l[0], l[1], l[2], l[3], '#5a22b4'); });
     // wingtip guns
     rect(2, 19, 5, 29, '#0b4f22'); rect(3, 28, 4, 33, '#25d558');
     // body, plating and crest
     fill([[64,3],[57,8],[52,18],[50,32],[52,46],[57,58],[61,66],[64,69]], '#4a1a9a');
     fill([[64,6],[60,12],[58,24],[58,40],[60,54],[64,62]], '#a24dff');
     fill([[64,0],[60,3],[57,8],[60,10],[64,7]], '#e4b8ff');
+    line(64, 14, 60, 22, '#e4b8ff'); line(64, 44, 60, 52, '#6a2fd0'); line(64, 50, 61, 58, '#6a2fd0');
     rect(60, 66, 63, 70, '#ffd34d');
     // eye socket
     disc(64, 32, 9.5, '#ffd34d'); disc(64, 32, 8.2, '#12062e');
@@ -371,7 +382,9 @@
       }
     }
     g.putImageData(new ImageData(out, w, h), 0, 0);
-    return decorate(base, '#c04bff', 6, 8);
+    const spr = decorate(base, '#c04bff', 6, 8);
+    spr.k = K;
+    return spr;
   }
 
   // Gaster-blaster style skull cannon, drawn procedurally (left half mirrored), muzzle pointing down
@@ -427,16 +440,6 @@
     return decorate(base, '#ff3df0', 5, 8);
   }
 
-  // whole-number upscale (keeps pixels crisp)
-  function scaleUp(src, k) {
-    const c = document.createElement('canvas');
-    c.width = src.width * k; c.height = src.height * k;
-    const g = c.getContext('2d');
-    g.imageSmoothingEnabled = false;
-    g.drawImage(src, 0, 0, c.width, c.height);
-    return c;
-  }
-
   // [rows, palette, glow colour]
   const KINDS = [
     null,
@@ -462,7 +465,7 @@
   }
 
   window.Sprites = {
-    ship: decorate(scaleUp(paint(SHIP, PAL.ship), 2), '#3a9bff', 5, 8),
+    ship: build(SHIP, PAL.ship, '#3a9bff', 4, 6),
     life: build(LIFE, PAL.ship, null, 0, 1),
     enemy: enemy,
     boss: buildBoss(),

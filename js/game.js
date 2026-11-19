@@ -3,7 +3,7 @@
 
   const TAU = Math.PI * 2;
   const BASE_W = 270, BASE_H = 480;   // smallest field we ever use (portrait 9:16)
-  const MAX_W = 304, MAX_H = 640;     // caps for very wide / very tall screens
+  const MAX_W = 304, MAX_H = 900;     // caps for very wide / very tall screens
   let W = BASE_W, H = BASE_H;         // current field size in art pixels (set by layout())
   const SAFE = { top: 0, bottom: 0 }; // notch / home-bar insets in art pixels
   const S = window.Sprites;
@@ -13,13 +13,13 @@
     lives: 3,
     waves: 15,
     ship: {
-      margin: 20,
+      margin: 12,
       maxSpeed: 340,        // px/s cap
       smooth: 17,           // higher = lighter/snappier follow
       dragGain: 1.2,        // ship travels a bit further than the finger
       moveThreshold: 10,    // px/s: ship counts as "moving" (and fires) above this
       fireInterval: 0.11, bulletSpeed: 440,
-      hitW: 11, hitH: 15,
+      hitW: 9, hitH: 12,
       respawnDelay: 1.2, invuln: 2.4, keySpeed: 250,
     },
     hold: { time: 0.5, still: 0.06, moveDist: 7 },     // short, forgiving hold-to-activate
@@ -29,10 +29,10 @@
       maxBase: 1, maxPerWave: 0.25,
       loop: 0.55, back: 1.1, speedBase: 165, speedPerWave: 6,
     },
-    boss: { hp: 900, baseY: 98, score: 25000 },
+    boss: { hp: 1100, baseY: 116, score: 25000 },   // baseY = boss centre below the HUD (plus any notch)
     charge: { base: 3, perKind: 0.8 },
-    shield: { duration: 7, radius: 32 },
-    laser: { duration: 4, dps: 22, width: 38 },
+    shield: { duration: 7, radius: 18 },
+    laser: { duration: 4, dps: 22, width: 30 },
     time: { duration: 3, scale: 0.3 },     // shortest power-up; enemies + their bullets run at 30% speed
     enemy: {
       count: [10, 1.55],     // enemies per wave = round(a + b * wave)
@@ -81,6 +81,7 @@
   const clamp = function (v, a, b) { return v < a ? a : v > b ? b : v; };
   const lerp = function (a, b, t) { return a + (b - a) * t; };
   const sfx = function (n) { if (window.SFX) window.SFX.play(n); };
+  const music = function (m, w) { if (window.MUSIC) window.MUSIC.set(m, w); };
 
   /* ------------------------------------------------------------------ canvas */
   const canvas = document.getElementById('game');
@@ -107,7 +108,7 @@
   try { const sv = localStorage.getItem('neon.power'); if (sv === 'shield' || sv === 'laser' || sv === 'time') P.type = sv; } catch (_) {}
 
   function zone() {
-    const bottom = H - 38 - SAFE.bottom;
+    const bottom = H - 22 - SAFE.bottom;
     const top = Math.max(Math.round(H * 0.5), Math.round(H - SAFE.bottom - clamp(H * 0.4, 190, 260)));
     return { top: top, bottom: bottom };
   }
@@ -172,7 +173,10 @@
   // Fill the whole screen: the field is always 270+ art pixels wide and 480-640 tall, whatever the phone's shape
   function layout() {
     const dpr = window.devicePixelRatio || 1;
-    const vw = window.innerWidth, vh = window.innerHeight;
+    const vw = window.innerWidth;
+    let vh = window.innerHeight;
+    // iOS home-screen mode can report a viewport shorter than the screen (status bar area): cover it anyway
+    if (window.navigator.standalone && vh > vw) vh = Math.max(vh, document.documentElement.clientHeight, Math.max(screen.width, screen.height));
     let s = Math.min(vw * dpr / BASE_W, vh * dpr / BASE_H);
     const whole = Math.floor(s);
     if (whole >= 2 && whole / s >= 0.88) s = whole;      // crisp whole-pixel scale when it wastes little
@@ -390,6 +394,7 @@
   }
 
   function startWave(n) {
+    music('battle', n);
     G.wave = n; G.ws = 'enter'; G.wt = 0; G.formT = 0; G.fightT = 0; G.fireT = 1.2; G.diveT = 0.3; boss = null; blasters = [];
     G.banner = { text: 'WAVE ' + n, color: '#3ff0ff', t: 0, dur: 1.9 };
     sfx('wave');
@@ -419,6 +424,7 @@
   }
 
   function endGame(win) {
+    music('lobby');
     G.mode = win ? 'win' : 'over';
     sfx(win ? 'victory' : 'gameover');
     ui.endTitle.textContent = win ? 'VICTORY' : 'GAME OVER';
@@ -546,7 +552,7 @@
 
     ship.fireCd = Math.max(0, ship.fireCd - dt);
     if (ship.moving && !laserOn() && ship.fireCd <= 0) {
-      pbul.push({ x: ship.x - 8, y: ship.y - SHIP_H * 0.6 }, { x: ship.x + 8, y: ship.y - SHIP_H * 0.6 });
+      pbul.push({ x: ship.x - 4, y: ship.y - 8 }, { x: ship.x + 4, y: ship.y - 8 });
       sfx('shoot');
       ship.fireCd = sc.fireInterval;
     }
@@ -675,11 +681,12 @@
 
   function startBoss() {
     const spr = S.boss;
+    music('boss');
     G.wave = CFG.waves + 1; G.ws = 'boss'; G.wt = 0; G.fireT = 2;
     enemies = []; ebul = []; blasters = [];
     G.banner = { text: 'WARNING', color: '#ff4455', t: 0, dur: 2.6, flicker: true };
     sfx('warning');
-    boss = { x: W / 2, y: -spr.h, w: spr.w, h: spr.h, hp: CFG.boss.hp, maxHp: CFG.boss.hp, state: 'enter', t: 0,
+    boss = { x: W / 2, y: -spr.h, w: spr.w, h: spr.h, k: spr.k, hp: CFG.boss.hp, maxHp: CFG.boss.hp, state: 'enter', t: 0,
              flash: 0, phase: 1, hatch: 0, dyingT: 0, boomT: 0, queue: [],
              tm: { ring: 2.5, fan: 4, blaster: 7, spiral: 3, minion: 3.5 }, sp: { left: 0, tick: 0, a: 0, arms: 1 } };
   }
@@ -702,7 +709,7 @@
     sfx('ring');
     for (let i = 0; i < n; i++) {
       const a = off + i * TAU / n;
-      ebul.push({ x: b.x, y: b.y + 2, vx: Math.sin(a) * sp, vy: Math.cos(a) * sp, col: 'm', orb: true });
+      ebul.push({ x: b.x, y: b.y - 4 * b.k, vx: Math.sin(a) * sp, vy: Math.cos(a) * sp, col: 'm', orb: true });
     }
   }
 
@@ -716,14 +723,14 @@
   }
 
   function spawnMinions(b) {
-    const offs = [-65, -39, -13, 13, 39, 65];
+    const offs = [-100, -60, -20, 20, 60, 100];
     b.hatch = 0.9;
     sfx('spawn');
     offs.forEach(function (off, i) {
       const kind = i % 3 === 2 ? 2 : 1, spr = S.enemy[kind][0], side = off < 0 ? -1 : 1;
       enemies.push({
         kind: kind, hp: 1, maxHp: 1, w: spr.w, h: spr.h, minion: true, hidden: true, off: off, side: side,
-        ax: b.x + off, ay: b.y + 78, x: b.x, y: b.y,
+        ax: b.x + off, ay: b.y + b.h / 2 + 40, x: b.x, y: b.y,
         state: 'spawn', t: 0, delay: (side < 0 ? i : i - 3) * 0.18,
         r: rand(3, 7), w2: (Math.random() < 0.5 ? -1 : 1) * rand(1, 2), th: rand(0, TAU), ramp: 0, flash: 0, ph: Math.random(),
       });
@@ -739,7 +746,7 @@
         e.t += edt;
         e.hidden = e.t < e.delay;
         const u = clamp((e.t - e.delay) / 1.1, 0, 1), k = 1 - Math.pow(1 - u, 3);
-        const sx = b.x + e.side * 25.5, sy = b.y - 8, tx = b.x + e.off, ty = b.y + 78;
+        const sx = b.x + e.side * 25.5 * b.k, sy = b.y - 8 * b.k, tx = b.x + e.off, ty = b.y + b.h / 2 + 40;
         e.x = lerp(sx, tx, k) + e.side * Math.sin(u * Math.PI) * 18;
         e.y = lerp(sy, ty, k) - Math.sin(u * Math.PI) * 10;
         if (u >= 1) { e.state = 'free'; e.ramp = 0; }
@@ -748,7 +755,7 @@
         e.ramp = Math.min(1, e.ramp + edt / 0.6);
         const k = e.ramp * e.ramp * (3 - 2 * e.ramp);
         e.x = b.x + e.off + Math.cos(e.th) * e.r * k;
-        e.y = b.y + 78 + Math.sin(e.th) * e.r * k;
+        e.y = b.y + b.h / 2 + 40 + Math.sin(e.th) * e.r * k;
       }
     }
   }
@@ -788,7 +795,7 @@
           b.sp.tick = 0.075;
           for (let k = 0; k < b.sp.arms; k++) {
             const a = b.sp.a + k * TAU / b.sp.arms;
-            ebul.push({ x: b.x, y: b.y + 2, vx: Math.sin(a) * 95, vy: Math.cos(a) * 95, col: 'm', orb: true });
+            ebul.push({ x: b.x, y: b.y - 4 * b.k, vx: Math.sin(a) * 95, vy: Math.cos(a) * 95, col: 'm', orb: true });
           }
           b.sp.a += 0.33;
         }
@@ -803,11 +810,11 @@
     b.t += edt; b.flash = Math.max(0, b.flash - dt); b.hatch = Math.max(0, b.hatch - dt);
     if (b.state === 'enter') {
       const p = clamp(b.t / 3.2, 0, 1);
-      b.y = lerp(-b.h, CFG.boss.baseY, 1 - Math.pow(1 - p, 3));
+      b.y = lerp(-b.h, CFG.boss.baseY + SAFE.top, 1 - Math.pow(1 - p, 3));
       if (p >= 1) { b.state = 'fight'; b.t = 0; G.banner = { text: 'FINAL BOSS', color: '#ff3df0', t: 0, dur: 2 }; sfx('boss'); }
     } else if (b.state === 'fight') {
-      b.x = W / 2 + Math.sin(b.t * 0.45) * (W / 2 - b.w / 2 - 8) * 0.8;
-      b.y = CFG.boss.baseY + Math.sin(b.t * 0.9) * 5;
+      b.x = W / 2 + Math.sin(b.t * 0.45) * Math.max(10, (W - b.w) / 2) ;
+      b.y = CFG.boss.baseY + SAFE.top + Math.sin(b.t * 0.9) * 6;
       bossAttacks(b, edt);
       for (let i = b.queue.length - 1; i >= 0; i--) {
         b.queue[i].t -= edt;
@@ -1113,17 +1120,19 @@
     if (b.flash > 0) drawImg(spr.flash, b.x + jx, b.y);
     const col = b.phase === 1 ? '#3ff0ff' : b.phase === 2 ? '#ffd34d' : '#ff4455';
     const pulse = 0.5 + 0.5 * Math.sin(G.t * 6);
-    const ex = Math.round(b.x) + jx, ey = Math.round(b.y) - 4;
+    const kk = b.k, ex = Math.round(b.x) + jx, ey = Math.round(b.y - 4 * kk), er = 6.3 * kk;
     ctx.globalAlpha = 0.55 + 0.45 * pulse;
     ctx.fillStyle = col;
-    for (let dy = -6; dy <= 6; dy++) { const half = Math.floor(Math.sqrt(40 - dy * dy)); if (half > 0) ctx.fillRect(ex - half, ey + dy, half * 2, 1); }
+    for (let dy = -Math.ceil(er); dy <= Math.ceil(er); dy++) { const half = Math.floor(Math.sqrt(er * er - dy * dy)); if (half > 0) ctx.fillRect(ex - half, ey + dy, half * 2, 1); }
     ctx.fillStyle = '#ffffff';
-    ctx.fillRect(ex - 2, ey - 2, 4, 4);
+    const cr = Math.round(2 * kk);
+    ctx.fillRect(ex - cr, ey - cr, cr * 2, cr * 2);
     if (b.hatch > 0) {
       ctx.globalAlpha = Math.min(1, b.hatch * 2);
       ctx.fillStyle = '#ff8a1c';
-      ctx.fillRect(Math.round(b.x) - 29, Math.round(b.y) - 10, 8, 4);
-      ctx.fillRect(Math.round(b.x) + 21, Math.round(b.y) - 10, 8, 4);
+      const hw = Math.round(8 * kk), hh = Math.round(4 * kk), hx = Math.round(25.5 * kk), hy = Math.round(10 * kk);
+      ctx.fillRect(Math.round(b.x) - hx - Math.round(hw / 2), Math.round(b.y) - hy, hw, hh);
+      ctx.fillRect(Math.round(b.x) + hx - Math.round(hw / 2), Math.round(b.y) - hy, hw, hh);
     }
     ctx.globalAlpha = 1;
   }
@@ -1202,14 +1211,13 @@
       drawImg(aura(col), x, y);
       ctx.globalAlpha = 1;
     }
-    const fl = 6 + (ship.moving ? 6 : 0) + ((Math.random() * 4) | 0);
+    const fl = 3 + (ship.moving ? 3 : 0) + ((Math.random() * 3) | 0);
     const fx = Math.round(x), fy = Math.round(y) + SHIP_H;
     ctx.globalCompositeOperation = 'lighter';
-    ctx.fillStyle = 'rgba(255,120,20,0.3)'; ctx.fillRect(fx - 6, fy, 13, fl + 5);
+    ctx.fillStyle = 'rgba(255,120,20,0.3)'; ctx.fillRect(fx - 3, fy, 7, fl + 3);
     ctx.globalCompositeOperation = 'source-over';
-    ctx.fillStyle = '#ff7a12'; ctx.fillRect(fx - 3, fy, 7, fl);
-    ctx.fillStyle = '#ffd34d'; ctx.fillRect(fx - 2, fy, 5, Math.max(2, fl - 3));
-    ctx.fillStyle = '#fff2a8'; ctx.fillRect(fx - 1, fy, 3, Math.max(2, fl - 6));
+    ctx.fillStyle = '#ff7a12'; ctx.fillRect(fx - 1, fy, 3, fl);
+    ctx.fillStyle = '#fff2a8'; ctx.fillRect(fx, fy, 1, Math.max(1, fl - 2));
     drawImg(spr.c, x, y);
     if (P.state === 'ready') {
       ctx.globalCompositeOperation = 'lighter';
@@ -1231,15 +1239,15 @@
       }
     }
     if (timeOn()) {
-      const r = 26 + ((G.t * 30) % 14);
+      const r = 14 + ((G.t * 30) % 12);
       ctx.globalAlpha = 0.5;
       pixelRing(x, y, r, '#ff9af5', 0, TAU, 3);
       ctx.globalAlpha = 1;
     }
     if (P.hold > 0) {
-      pixelRing(x, y, 34, 'rgba(255,255,255,0.22)', 0, TAU, 0);
-      pixelRing(x, y, 34, '#ffffff', -Math.PI / 2, -Math.PI / 2 + TAU * Math.min(1, P.hold / CFG.hold.time), 0);
-      pixelRing(x, y, 35, col, -Math.PI / 2, -Math.PI / 2 + TAU * Math.min(1, P.hold / CFG.hold.time), 0);
+      pixelRing(x, y, 22, 'rgba(255,255,255,0.22)', 0, TAU, 0);
+      pixelRing(x, y, 22, '#ffffff', -Math.PI / 2, -Math.PI / 2 + TAU * Math.min(1, P.hold / CFG.hold.time), 0);
+      pixelRing(x, y, 23, col, -Math.PI / 2, -Math.PI / 2 + TAU * Math.min(1, P.hold / CFG.hold.time), 0);
     }
   }
 
@@ -1400,6 +1408,7 @@
   document.getElementById('retryBtn').addEventListener('click', startGame);
   document.getElementById('lobbyBtn').addEventListener('click', function () {
     sfx('click');
+    music('lobby');
     G.mode = 'lobby';
     ui.end.classList.add('hidden');
     ui.lobby.classList.remove('hidden');
@@ -1409,6 +1418,10 @@
     b.addEventListener('click', function () { window.SFX.setMuted(!window.SFX.isMuted()); sfx('click'); });
   });
   window.SFX.setMuted(window.SFX.isMuted());
+  document.querySelectorAll('.musBtn').forEach(function (b) {
+    b.addEventListener('click', function () { window.MUSIC.setEnabled(!window.MUSIC.isEnabled()); sfx('click'); });
+  });
+  music('lobby');
   drawIcons();
   selectPower(P.type);
 

@@ -11,7 +11,8 @@
 html, body {
   margin: 0;
   height: 100%;
-  background: #020108;
+  /* same sky colours as the canvas, so nothing ever looks like an empty bar (status bar area, notch, edges) */
+  background: linear-gradient(#050314, #14093e);
   overflow: hidden;
   overscroll-behavior: none;
   font-family: 'Press Start 2P', monospace;
@@ -21,7 +22,7 @@ html, body {
 }
 
 /* pinned to the real screen so iOS never rubber-bands or leaves bars; JS sizes #stage to fill it */
-body { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }
+body { position: fixed; inset: 0; display: flex; align-items: flex-start; justify-content: center; }
 
 #stage {
   position: relative;
