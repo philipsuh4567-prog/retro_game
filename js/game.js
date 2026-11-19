@@ -177,20 +177,18 @@
   function layout() {
     const dpr = window.devicePixelRatio || 1;
     const vw = window.innerWidth;
-    let vh = Math.max(window.innerHeight, document.documentElement.clientHeight || 0, window.visualViewport ? window.visualViewport.height : 0);
+    let vh = window.innerHeight;
     // iOS home-screen mode can report a viewport shorter than the screen (status bar area): cover it anyway
-    if (window.navigator.standalone && vh > vw) vh = Math.max(vh, Math.max(screen.width, screen.height));
+    if (window.navigator.standalone && vh > vw) vh = Math.max(vh, document.documentElement.clientHeight, Math.max(screen.width, screen.height));
     let s = Math.min(vw * dpr / BASE_W, vh * dpr / BASE_H);
     const whole = Math.floor(s);
     if (whole >= 2 && whole / s >= 0.88) s = whole;      // crisp whole-pixel scale when it wastes little
-    const rawW = Math.ceil(vw * dpr / s), rawH = Math.ceil(vh * dpr / s);
-    const nW = clamp(rawW, BASE_W, MAX_W);
-    const nH = clamp(rawH, BASE_H, MAX_H);
+    const nW = clamp(Math.floor(vw * dpr / s), BASE_W, MAX_W);
+    const nH = clamp(Math.floor(vh * dpr / s), BASE_H, MAX_H);
     const u = s / dpr;
     document.documentElement.style.setProperty('--u', u + 'px');
-    // the stage fills the viewport exactly (rounding up the field and stretching by <1 art pixel leaves no sliver at any edge)
-    stageEl.style.width = (rawW <= MAX_W ? vw : nW * u) + 'px';
-    stageEl.style.height = (rawH <= MAX_H ? vh : nH * u) + 'px';
+    stageEl.style.width = (nW * u) + 'px';
+    stageEl.style.height = (nH * u) + 'px';
     const cs = getComputedStyle(probe);
     SAFE.top = (parseFloat(cs.paddingTop) || 0) / u;
     SAFE.bottom = (parseFloat(cs.paddingBottom) || 0) / u;

@@ -8,15 +8,6 @@
   "background_color": "#050314",
   "theme_color": "#050314",
   "icons": [
-    {
-      "src": "apple-touch-icon.png",
-      "sizes": "180x180",
-      "type": "image/png",
-      "purpose": "any"
-    }
-  ],
-  "display_override": [
-    "fullscreen",
-    "standalone"
+    { "src": "apple-touch-icon.png", "sizes": "180x180", "type": "image/png", "purpose": "any" }
   ]
 }
