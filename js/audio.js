@@ -68,6 +68,21 @@
     power_shield: function () { tone({ type: 'sine', f0: 300, f1: 1100, dur: 0.45, vol: 0.14 }); tone({ type: 'triangle', f0: 600, f1: 1500, dur: 0.45, vol: 0.06 }); },
     power_laser:  function () { tone({ type: 'sawtooth', f0: 1400, f1: 90, dur: 0.6, vol: 0.14 }); noise({ f0: 3500, f1: 400, dur: 0.6, vol: 0.12 }); },
     power_time:   function () { tone({ type: 'sine', f0: 1000, f1: 120, dur: 0.7, vol: 0.14 }); tone({ type: 'triangle', f0: 500, f1: 60, dur: 0.7, vol: 0.08 }); },
+    saberOn: function () {
+      noise({ f0: 7000, f1: 1500, dur: 0.14, vol: 0.2, filter: 'highpass' });                 // the spark
+      const t = ctx.currentTime;
+      [['sawtooth', 70, 230, 0.15], ['triangle', 140, 460, 0.07]].forEach(function (v) {   // ignite sweep with a vibrato wobble
+        const o = ctx.createOscillator(), g = ctx.createGain(), lfo = ctx.createOscillator(), lg = ctx.createGain();
+        o.type = v[0]; o.frequency.setValueAtTime(v[1], t); o.frequency.exponentialRampToValueAtTime(v[2], t + 0.32);
+        lfo.frequency.value = 38; lg.gain.value = v[2] * 0.05; lfo.connect(lg); lg.connect(o.frequency);
+        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v[3], t + 0.05); g.gain.exponentialRampToValueAtTime(v[3] * 0.55, t + 0.4); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
+        o.connect(g); g.connect(master); lfo.start(t); o.start(t); o.stop(t + 0.6); lfo.stop(t + 0.6);
+      });
+    },
+    saberOff: function () { tone({ type: 'sawtooth', f0: 230, f1: 55, dur: 0.28, vol: 0.12 }); noise({ f0: 4000, f1: 800, dur: 0.12, vol: 0.08, filter: 'highpass' }); },
+    laserOn: function () { tone({ type: 'sawtooth', f0: 1000, f1: 60, dur: 0.45, vol: 0.14 }); tone({ type: 'sine', f0: 90, f1: 38, dur: 0.5, vol: 0.3 }); noise({ f0: 3500, f1: 300, dur: 0.5, vol: 0.12 }); },
+    timeOn: function () { tone({ type: 'sine', f0: 700, f1: 60, dur: 0.9, vol: 0.2 }); tone({ type: 'triangle', f0: 350, f1: 40, dur: 0.9, vol: 0.1 }); noise({ f0: 2500, f1: 120, dur: 0.9, vol: 0.1 }); },
+    timeOff: function () { tone({ type: 'sine', f0: 70, f1: 520, dur: 0.4, vol: 0.14 }); },
     eshoot:  function () { tone({ type: 'sawtooth', f0: 520, f1: 200, dur: 0.09, vol: 0.025 }); },
     dive:    function () { tone({ type: 'sawtooth', f0: 700, f1: 160, dur: 0.35, vol: 0.04 }); },
     wave:    function () { notes([330, 392], 'square', 0.05, 0.09); },
@@ -86,6 +101,78 @@
 
   // minimum gap between repeats of the same sound (seconds), so rapid-fire events don't pile up
   const GAP = { shoot: 0.07, hit: 0.05, eshoot: 0.08, boom: 0.04, shield: 0.06, ring: 0.2, dive: 0.15, blasterWarn: 0.3 };
+
+  // Sustained layers that run while a power-up is active.
+  const loops = {};
+  let activePower = null;
+
+  function startLoop(name) {
+    if (!ctx || loops[name]) return;
+    const t = ctx.currentTime, out = ctx.createGain(), osc = [];
+    let vol = 0.1;
+    const add = function (type, freq, gainVal, dest) {
+      const o = ctx.createOscillator(), og = ctx.createGain();
+      o.type = type; o.frequency.value = freq; og.gain.value = gainVal;
+      o.connect(og); og.connect(dest); o.start(t); osc.push(o);
+    };
+    const lfoTo = function (freq, depth, param) {
+      const l = ctx.createOscillator(), lg = ctx.createGain();
+      l.frequency.value = freq; lg.gain.value = depth; l.connect(lg); lg.connect(param); l.start(t); osc.push(l);
+    };
+    if (name === 'shield') {                      // lightsaber hum: detuned saws, a swinging filter, a gentle tremolo
+      vol = 0.08;
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass'; lp.frequency.value = 1100; lp.Q.value = 2; lp.connect(out);
+      add('sawtooth', 110, 1, lp); add('sawtooth', 111.7, 1, lp); add('square', 220.5, 0.25, lp);
+      lfoTo(0.8, 450, lp.frequency);
+      lfoTo(5.5, vol * 0.3, out.gain);
+    } else if (name === 'laser') {                // 50 Hz fundamental (+ 100 Hz so phone speakers can hear it), pulsing like a beam
+      vol = 0.34;
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass'; lp.frequency.value = 500; lp.connect(out);
+      add('sine', 50, 1, lp); add('triangle', 100, 0.3, lp);
+      lfoTo(16, vol * 0.18, out.gain);
+    } else {                                      // time: a 90 Hz bed (+ 180 Hz) that slowly throbs
+      vol = 0.26;
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass'; lp.frequency.value = 600; lp.connect(out);
+      add('sine', 90, 1, lp); add('triangle', 180, 0.22, lp);
+      lfoTo(1.2, vol * 0.3, out.gain);
+    }
+    out.gain.setValueAtTime(0.0001, t);
+    out.gain.exponentialRampToValueAtTime(vol, t + 0.12);
+    out.connect(master);
+    loops[name] = { out: out, osc: osc };
+  }
+
+  function stopLoop(name) {
+    const l = loops[name];
+    if (!l) return;
+    delete loops[name];
+    const t = ctx.currentTime;
+    l.out.gain.cancelScheduledValues(t);
+    l.out.gain.setValueAtTime(Math.max(0.0001, l.out.gain.value), t);
+    l.out.gain.exponentialRampToValueAtTime(0.0001, t + 0.25);
+    l.osc.forEach(function (o) { try { o.stop(t + 0.3); } catch (_) {} });
+  }
+
+  // called by the game whenever the active power-up changes (null = none)
+  function powerSet(type) {
+    if (type === activePower) return;
+    const prev = activePower;
+    activePower = type;
+    if (!ctx) return;
+    if (prev) {
+      stopLoop(prev);
+      if (prev === 'shield') play('saberOff');
+      if (prev === 'time') { play('timeOff'); MUS.rateT = 1; }
+    }
+    if (type) {
+      play(type === 'shield' ? 'saberOn' : type === 'laser' ? 'laserOn' : 'timeOn');
+      startLoop(type);
+      if (type === 'time') MUS.rateT = 0.45;     // music drags down while time is stopped
+    }
+  }
 
   function play(name) {
     if (!ctx || muted) return;
@@ -106,11 +193,11 @@
   /* ------------------------------------------------------------------ music */
   // A small step sequencer. Lobby: relaxed deep-house take. Battle/boss: same arp motif, darker chords,
   // faster tempo, rolling bass, clap and stabs for tension.
-  const MUS = { want: 'lobby', wave: 1, mode: null, bus: null, duck: null, bpm: 112, step: 0, next: 0, timer: null, enabled: true };
+  const MUS = { want: 'lobby', wave: 1, mode: null, bus: null, duck: null, bpm: 112, step: 0, next: 0, timer: null, enabled: true, rate: 1, rateT: 1 };
   try { MUS.enabled = localStorage.getItem('neon.music') !== '0'; } catch (_) {}
-  let musicMaster = null, fxIn = null, fxDelay = null;
+  let musicMaster = null, musicLP = null, fxIn = null, fxDelay = null;
   const MUSIC_VOL = 0.32;
-  const hz = function (m) { return 440 * Math.pow(2, (m - 69) / 12); };
+  const hz = function (m) { return 440 * Math.pow(2, (m - 69) / 12) * (0.65 + 0.35 * MUS.rate); };   // pitch sags as the music slows
 
   // r = bass root, t = chord tones (midi)
   const PROG = {
@@ -134,12 +221,15 @@
     musicMaster = ctx.createGain();
     musicMaster.gain.value = MUS.enabled ? MUSIC_VOL : 0;
     musicMaster.connect(master);
+    musicLP = ctx.createBiquadFilter();
+    musicLP.type = 'lowpass'; musicLP.frequency.value = 18000;
+    musicLP.connect(musicMaster);
     fxIn = ctx.createGain();
     fxDelay = ctx.createDelay(1);
     const fb = ctx.createGain(), lp = ctx.createBiquadFilter(), wet = ctx.createGain();
     fb.gain.value = 0.38; lp.type = 'lowpass'; lp.frequency.value = 2400; wet.gain.value = 0.45;
     fxIn.connect(fxDelay); fxDelay.connect(lp); lp.connect(fb); fb.connect(fxDelay);
-    fxDelay.connect(wet); wet.connect(musicMaster);
+    fxDelay.connect(wet); wet.connect(musicLP);
     if (MUS.want && MUS.want !== 'off') switchMode(MUS.want);
   }
 
@@ -159,7 +249,7 @@
     MUS.bus = ctx.createGain();
     MUS.bus.gain.setValueAtTime(0, t);
     MUS.bus.gain.linearRampToValueAtTime(1, t + 0.5);
-    MUS.bus.connect(musicMaster);
+    MUS.bus.connect(musicLP);
     MUS.duck = ctx.createGain();
     MUS.duck.connect(MUS.bus);
     MUS.bpm = bpmFor(mode);
@@ -172,9 +262,11 @@
   function musicTick() {
     if (!ctx || !MUS.bus || ctx.state !== 'running') return;
     if (MUS.next < ctx.currentTime - 0.3) MUS.next = ctx.currentTime + 0.05;
+    MUS.rate += (MUS.rateT - MUS.rate) * 0.12;                      // ease the tempo down / back up
+    musicLP.frequency.setTargetAtTime(900 * Math.pow(20, (MUS.rate - 0.45) / 0.55), ctx.currentTime, 0.08);   // muffles as it slows
     while (MUS.next < ctx.currentTime + 0.15) {
       schedStep(MUS.step, MUS.next);
-      MUS.next += 60 / MUS.bpm / 4;
+      MUS.next += 60 / MUS.bpm / 4 / MUS.rate;
       MUS.step++;
     }
   }
@@ -305,10 +397,10 @@
     if (document.hidden) ctx.suspend(); else if (ctx.state === 'suspended') ctx.resume();
   });
 
-  window.SFX = { play: play, setMuted: setMuted, isMuted: function () { return muted; } };
+  window.SFX = { play: play, power: powerSet, setMuted: setMuted, isMuted: function () { return muted; } };
   window.MUSIC = {
     set: musicSet, setEnabled: setMusicEnabled, isEnabled: function () { return MUS.enabled; },
-    debug: function () { return { mode: MUS.mode, bpm: MUS.bpm, step: MUS.step, wave: MUS.wave, ctx: ctx ? ctx.state : 'none', level: level() }; },
+    debug: function () { return { mode: MUS.mode, bpm: MUS.bpm, step: MUS.step, wave: MUS.wave, rate: +MUS.rate.toFixed(2), loops: Object.keys(loops), ctx: ctx ? ctx.state : 'none', level: level() }; },
   };
   setMusicEnabled(MUS.enabled);
 })();

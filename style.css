@@ -8,11 +8,10 @@
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
 
+html { background-color: #080420; color-scheme: dark; }
 html, body {
   margin: 0;
   height: 100%;
-  /* same sky colours as the canvas, so nothing ever looks like an empty bar (status bar area, notch, edges) */
-  background: linear-gradient(#050314, #14093e);
   overflow: hidden;
   overscroll-behavior: none;
   font-family: 'Press Start 2P', monospace;
@@ -22,7 +21,11 @@ html, body {
 }
 
 /* pinned to the real screen so iOS never rubber-bands or leaves bars; JS sizes #stage to fill it */
-body { position: fixed; inset: 0; display: flex; align-items: flex-start; justify-content: center; }
+body {
+  position: fixed; inset: 0; display: flex; align-items: flex-start; justify-content: center;
+  /* same sky colours as the canvas, so an edge, notch or status-bar area never shows an empty bar */
+  background: linear-gradient(#050314, #14093e);
+}
 
 #stage {
   position: relative;

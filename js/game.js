@@ -85,7 +85,10 @@
 
   /* ------------------------------------------------------------------ canvas */
   const canvas = document.getElementById('game');
-  const ctx = canvas.getContext('2d');
+  const mainCtx = canvas.getContext('2d');
+  let ctx = mainCtx;                 // render target: the screen, or the offscreen scene while the time-warp is on
+  const scene = document.createElement('canvas'), sctx = scene.getContext('2d');
+  const warpTmp = document.createElement('canvas'), tctx = warpTmp.getContext('2d');
   const stageEl = document.getElementById('stage');
   let bg = null;
 
@@ -174,18 +177,20 @@
   function layout() {
     const dpr = window.devicePixelRatio || 1;
     const vw = window.innerWidth;
-    let vh = window.innerHeight;
+    let vh = Math.max(window.innerHeight, document.documentElement.clientHeight || 0, window.visualViewport ? window.visualViewport.height : 0);
     // iOS home-screen mode can report a viewport shorter than the screen (status bar area): cover it anyway
-    if (window.navigator.standalone && vh > vw) vh = Math.max(vh, document.documentElement.clientHeight, Math.max(screen.width, screen.height));
+    if (window.navigator.standalone && vh > vw) vh = Math.max(vh, Math.max(screen.width, screen.height));
     let s = Math.min(vw * dpr / BASE_W, vh * dpr / BASE_H);
     const whole = Math.floor(s);
     if (whole >= 2 && whole / s >= 0.88) s = whole;      // crisp whole-pixel scale when it wastes little
-    const nW = clamp(Math.floor(vw * dpr / s), BASE_W, MAX_W);
-    const nH = clamp(Math.floor(vh * dpr / s), BASE_H, MAX_H);
+    const rawW = Math.ceil(vw * dpr / s), rawH = Math.ceil(vh * dpr / s);
+    const nW = clamp(rawW, BASE_W, MAX_W);
+    const nH = clamp(rawH, BASE_H, MAX_H);
     const u = s / dpr;
     document.documentElement.style.setProperty('--u', u + 'px');
-    stageEl.style.width = (nW * u) + 'px';
-    stageEl.style.height = (nH * u) + 'px';
+    // the stage fills the viewport exactly (rounding up the field and stretching by <1 art pixel leaves no sliver at any edge)
+    stageEl.style.width = (rawW <= MAX_W ? vw : nW * u) + 'px';
+    stageEl.style.height = (rawH <= MAX_H ? vh : nH * u) + 'px';
     const cs = getComputedStyle(probe);
     SAFE.top = (parseFloat(cs.paddingTop) || 0) / u;
     SAFE.bottom = (parseFloat(cs.paddingBottom) || 0) / u;
@@ -193,7 +198,8 @@
     const dW = nW - W;
     W = nW; H = nH;
     canvas.width = W; canvas.height = H;
-    ctx.imageSmoothingEnabled = false;
+    scene.width = warpTmp.width = W; scene.height = warpTmp.height = H;
+    mainCtx.imageSmoothingEnabled = sctx.imageSmoothingEnabled = tctx.imageSmoothingEnabled = false;
     bg = makeBg();
     scatterStars();
     if (G.mode === 'play') {
@@ -453,7 +459,6 @@
 
   function activatePower() {
     P.state = 'active'; P.dur = CFG[P.type].duration; P.time = P.dur; P.hold = 0;
-    sfx('power_' + P.type);
     G.flash = 0.45; G.shake = P.type === 'time' ? 0 : 4;
     ring(ship.x, ship.y, POWER[P.type].color, 240, 110);
     burst(ship.x, ship.y, POWER[P.type].color, 18, 120);
@@ -996,10 +1001,17 @@
     G.flash = Math.max(0, G.flash - dt);
   }
 
+  let powerAudio = null;
+  function syncPower() {
+    const a = G.mode === 'play' && P.state === 'active' ? P.type : null;
+    if (a !== powerAudio) { powerAudio = a; if (window.SFX) window.SFX.power(a); }
+  }
+
   function update(dt) {
     updateStars(dt * (G.mode === 'play' ? 0.3 + 0.7 * G.ts : 1));
     if (G.mode === 'play') updatePlay(dt);
     updateFx(dt);
+    syncPower();
   }
 
   /* ---------------------------------------------------------------- render */
@@ -1331,7 +1343,27 @@
     ctx.globalAlpha = 1;
   }
 
+  // Time-stop: pull the picture inward like looking through a lens (rows narrow toward the top/bottom, columns toward the sides)
+  function warpAmount() { return clamp((1 - G.ts) / 0.7, 0, 1) * 0.05 * (1 + 0.15 * Math.sin(G.t * 3)); }
+
+  function applyWarp(a) {
+    const cx = W / 2, cy = H / 2;
+    tctx.clearRect(0, 0, W, H);
+    for (let y = 0; y < H; y++) {
+      const d = (y + 0.5 - cy) / cy, sc = 1 - a * d * d;
+      tctx.drawImage(scene, 0, y, W, 1, cx - W * sc / 2, y, W * sc, 1);
+    }
+    mainCtx.setTransform(1, 0, 0, 1, 0, 0);
+    mainCtx.drawImage(bg, 0, 0);
+    for (let x = 0; x < W; x++) {
+      const d = (x + 0.5 - cx) / cx, sc = 1 - a * d * d;
+      mainCtx.drawImage(warpTmp, x, 0, 1, H, x, cy - H * sc / 2, 1, H * sc);
+    }
+  }
+
   function render() {
+    const warp = G.mode === 'play' ? warpAmount() : 0;
+    ctx = warp > 0.004 ? sctx : mainCtx;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.drawImage(bg, 0, 0);
     drawStars();
@@ -1376,6 +1408,7 @@
     if (G.flash > 0) { ctx.globalAlpha = G.flash * 1.2; ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
     drawHud();
     drawBanner();
+    if (ctx === sctx) { ctx = mainCtx; applyWarp(warp); }
   }
 
   /* ------------------------------------------------------------------- ui */
